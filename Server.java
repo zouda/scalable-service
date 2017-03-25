@@ -21,6 +21,9 @@ public class Server {
         }
     }
     
+    /**
+     * Main Entry
+     */
     public static void main ( String args[] ) throws Exception {
         if (args.length != 3) throw new Exception("Need 3 args: <cloud_ip> <cloud_port> <VM id>");
         String ip = args[0];
@@ -28,7 +31,7 @@ public class Server {
         int id = Integer.parseInt(args[2]);
         ServerLib SL = new ServerLib( ip, port );
         
-        // main server framework
+        // Main Routes
         if (id == 1) {
             Coordinator coordinator = new Coordinator(ip, port, SL);
             coordinator.run();
@@ -53,7 +56,7 @@ public class Server {
             else {  // Front Tier
                 String[] temp = type.split(" ");
                 int middle_id = Integer.parseInt(temp[1]);
-                FrontTier frontTier = new FrontTier(ip, port, SL, middle_id);
+                FrontTier frontTier = new FrontTier(ip, port, SL, id, middle_id);
                 frontTier.run();
             }
         }
