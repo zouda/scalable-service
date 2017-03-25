@@ -103,11 +103,11 @@ public class Coordinator extends UnicastRemoteObject implements CoordinatorRMI {
         try {
             String url = String.format("//%s:%d/%d", ip, port, front_id);
             FrontTierRMI frontTier = (FrontTierRMI) Naming.lookup(url);
-            System.err.println("FrontTier Connected ID: " + front_id);
+            System.err.println("Coordinator::FrontTier Connected ID: " + front_id);
             this.FrontTierMap.put(front_id, frontTier);
             numInstance++;
         } catch (Exception e) {
-            System.err.println("FrontTier Connection Failure ID: " + front_id);
+            System.err.println("Coordinator::FrontTier Connection Failure ID: " + front_id);
         }
     }
     
@@ -193,8 +193,9 @@ public class Coordinator extends UnicastRemoteObject implements CoordinatorRMI {
             FrontTierRMI frontTier = this.FrontTierMap.get(front_id);
             frontTier.unregisterFrontTier();
             completeScaleIn(front_id);
+            System.err.println("Coordinator:: FrontTier Unregistered ID:" + front_id);
         } catch (Exception e) {
-            System.err.println("Coordinator:: Unregister fails: ID" + front_id);
+            System.err.println("Coordinator:: Unregister fails ID:" + front_id);
         }
     }
     

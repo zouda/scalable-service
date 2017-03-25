@@ -64,7 +64,7 @@ public class FrontTier extends UnicastRemoteObject implements FrontTierRMI{
             connect = connectMiddleTier(ip, port, middle_id);
         }
         this.SL = SL;
-        coordinator.completeScaleOut(middle_id);
+        coordinator.completeScaleOut(id);
     }
     
     /**

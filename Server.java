@@ -51,7 +51,7 @@ public class Server {
                 System.err.println("Server::getInstanceType returns null.");
             }
             if (type.equals("MiddleTier")) {
-                MiddleTier middleTier = new MiddleTier(ip, port, SL, id);
+                MiddleTier middleTier = new MiddleTier(ip, port, SL, id, coordinator);
             } 
             else {  // Front Tier
                 String[] temp = type.split(" ");
