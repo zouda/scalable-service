@@ -10,7 +10,6 @@ import java.rmi.server.UnicastRemoteObject;
 public class FrontTier extends UnicastRemoteObject implements FrontTierRMI{
     
     private ServerLib SL;
-    private MiddleTierRMI middleTier;
     private CoordinatorRMI coordinator;
     private int id;
     

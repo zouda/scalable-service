@@ -93,6 +93,11 @@ public class Coordinator extends UnicastRemoteObject implements CoordinatorRMI {
             removeFrontTierInstance();
     }
     
+    public void removeMiddleTier() throws RemoteException {
+        if (this.MiddleTierList.size() > 1)
+            removeMiddleTierInstance();
+    }
+    
 //    /**
 //     * [RMI Implementation]
 //     * when middle instance has over high CPU load, it reports to coordinator,
@@ -178,18 +183,6 @@ public class Coordinator extends UnicastRemoteObject implements CoordinatorRMI {
         return id;
     }
     
-    private void removeFrontTierInstance() {
-        int front_id = this.FrontTierList.get(0);
-        this.FrontTierList.remove(0);
-        try {
-          String url = String.format("//%s:%d/%d", ip, port, front_id);
-          FrontTierRMI frontTier = (FrontTierRMI) Naming.lookup(url);
-          frontTier.unregisterFrontTier();
-      } catch (Exception e) {
-          System.err.println("Coordinator::Remove FrontTier Connection Failure ID: " + front_id);
-      }
-    }
-    
     /**
      * start a new middle tier instance
      * @return VM id
@@ -200,6 +193,32 @@ public class Coordinator extends UnicastRemoteObject implements CoordinatorRMI {
         this.MiddleTierList.add(id);
         return id;
     }
+    
+    private void removeFrontTierInstance() {
+        int front_id = this.FrontTierList.get(0);
+        this.FrontTierList.remove(0);
+        try {
+            String url = String.format("//%s:%d/%d", ip, port, front_id);
+            FrontTierRMI frontTier = (FrontTierRMI) Naming.lookup(url);
+            frontTier.unregisterFrontTier();
+        } catch (Exception e) {
+            System.err.println("Coordinator::Remove FrontTier Connection Failure ID: " + front_id);
+        }
+    }
+    
+    private void removeMiddleTierInstance() {
+        int mid_id = this.MiddleTierList.get(0);
+        this.MiddleTierList.remove(0);
+        try {
+            String url = String.format("//%s:%d/%d", ip, port, mid_id);
+            MiddleTierRMI middleTier = (MiddleTierRMI) Naming.lookup(url);
+            middleTier.unregisterMiddleTier();
+        } catch (Exception e) {
+            System.err.println("Coordinator::Remove MiddleTier Connection Failure ID: " + mid_id);
+        }
+    }
+    
+
     
 //    /**
 //     * add new Front Tier and Middle Tier (Scale Out)

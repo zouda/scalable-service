@@ -79,8 +79,10 @@ public class MiddleTier extends UnicastRemoteObject implements MiddleTierRMI {
         //autoScaling();
     }
 
-    public void unportObeject() throws RemoteException {
+    public void unregisterMiddleTier() throws RemoteException {
+        SL.shutDown();
         UnicastRemoteObject.unexportObject(this, true);
+        SL.endVM(id);
     }
     
     public void run() {

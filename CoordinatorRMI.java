@@ -44,5 +44,6 @@ public interface CoordinatorRMI extends Remote {
     public void addFrontTier() throws RemoteException;
     
     public void removeFrontTier() throws RemoteException;
-
+    
+    public void removeMiddleTier() throws RemoteException;
 }
