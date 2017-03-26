@@ -52,11 +52,10 @@ public class Server {
             }
             if (type.equals("MiddleTier")) {
                 MiddleTier middleTier = new MiddleTier(ip, port, SL, id, coordinator);
+                middleTier.run();
             } 
-            else {  // Front Tier
-                String[] temp = type.split(" ");
-                int middle_id = Integer.parseInt(temp[1]);
-                FrontTier frontTier = new FrontTier(ip, port, SL, id, middle_id);
+            else { 
+                FrontTier frontTier = new FrontTier(ip, port, SL, id, coordinator);
                 frontTier.run();
             }
         }

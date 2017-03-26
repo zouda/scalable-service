@@ -6,15 +6,18 @@ public class MiddleTier extends UnicastRemoteObject implements MiddleTierRMI {
     
     private ServerLib SL;
     private int id;
-    private int overloadCounter = 0;
-    private int underloadCounter = 0;
-    private float overloadThreshold = (float)(0.38);
-    private float underloadThreshold = (float)(0.25);
-    private int maxAllowableOverload = 10;
-    private int maxAllowableUnderload = 10;
-    
     private int overlookCounter = 0;
     private CoordinatorRMI coordinator;
+    private int overloadCounter = 0;
+    private int underloadCounter = 0;
+    
+    // tuned parameters:
+    private float overloadThreshold = (float)(0.38);
+    private float underloadThreshold = (float)(0.25);
+    private int maxAllowableOverload = 3;
+    private int maxAllowableUnderload = 1;
+    private int overlookThreshold = 15;
+    
     
     /**
      * Middle Tier Initialization
@@ -32,40 +35,40 @@ public class MiddleTier extends UnicastRemoteObject implements MiddleTierRMI {
         this.coordinator = coordinator;
     }
     
-    private void autoScaling() throws RemoteException {
-        float CPUload = Cloud.getCPUload();
-        System.err.println(CPUload);
-        
-        // overlook first 10 loads
-        if (overlookCounter < 10) { 
-            overlookCounter++;
-            return;
-        }
-        
-        if (CPUload >= overloadThreshold) {
-            overloadCounter++;
-            if (overloadCounter >= maxAllowableOverload) {
-                overloadCounter = 0;
-                coordinator.reportOverloadCPU(id);
-            }
-        }
-        else {
-            if (overloadCounter > 0)
-                overloadCounter--;
-        }
-        
-        if (CPUload < underloadThreshold) {
-            underloadCounter++;
-            if (underloadCounter >= maxAllowableUnderload) {
-                underloadCounter = 0;
-                coordinator.reportUnderloadCPU(id);
-            }
-        }
-        else {
-            if (underloadCounter > 0)
-                underloadCounter--;
-        }
-    }
+//    private void autoScaling() throws RemoteException {
+//        float CPUload = Cloud.getCPUload();
+//        System.err.println(CPUload);
+//        
+////        // overlook first coming unstable loads
+////        if (overlookCounter < overlookThreshold) { 
+////            overlookCounter++;
+////            return;
+////        }
+//        
+//        if (CPUload >= overloadThreshold) {
+//            overloadCounter++;
+//            if (overloadCounter >= maxAllowableOverload) {
+//                overloadCounter = 0;
+//                coordinator.reportOverloadCPU(id);
+//            }
+//        }
+//        else {
+//            if (overloadCounter > 0)
+//                overloadCounter--;
+//        }
+//        
+//        if (CPUload < underloadThreshold) {
+//            underloadCounter++;
+//            if (underloadCounter >= maxAllowableUnderload) {
+//                underloadCounter = 0;
+//                coordinator.reportUnderloadCPU(id);
+//            }
+//        }
+//        else {
+//            if (underloadCounter > 0)
+//                underloadCounter--;
+//        }
+//    }
     
     /**
      * [RMI Implementation]
@@ -73,6 +76,23 @@ public class MiddleTier extends UnicastRemoteObject implements MiddleTierRMI {
      */
     public void processRequest(Cloud.FrontEndOps.Request request) throws RemoteException {
         SL.processRequest(request);
-        autoScaling();
+        //autoScaling();
+    }
+
+    public void unportObeject() throws RemoteException {
+        UnicastRemoteObject.unexportObject(this, true);
+    }
+    
+    public void run() {
+        while (true) {
+            try {
+                Cloud.FrontEndOps.Request request = coordinator.getRequest();
+                if (request != null) {
+                    SL.processRequest(request);
+                } 
+            } catch (Exception e) {
+                
+            }
+        }
     }
 }

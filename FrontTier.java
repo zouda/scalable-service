@@ -11,60 +11,48 @@ public class FrontTier extends UnicastRemoteObject implements FrontTierRMI{
     
     private ServerLib SL;
     private MiddleTierRMI middleTier;
-    private static CoordinatorRMI coordinator;
-    private static int defaultCoordinatorId = 1;
+    private CoordinatorRMI coordinator;
+    private int id;
     
-    public int connectMiddleTier(String ip, int port, int middle_id) {
-        try {
-            String url = String.format("//%s:%d/%d", ip, port, middle_id);
-            middleTier = (MiddleTierRMI) Naming.lookup(url);
-            System.err.println("middleTier Connected");
-            return 0;
-        } catch (Exception e) {
-            return -1;
-        }
-    }
+//    public int connectMiddleTier(String ip, int port, int middle_id) {
+//        try {
+//            String url = String.format("//%s:%d/%d", ip, port, middle_id);
+//            middleTier = (MiddleTierRMI) Naming.lookup(url);
+//            System.err.println("middleTier Connected");
+//            return 0;
+//        } catch (Exception e) {
+//            return -1;
+//        }
+//    }
     
     /**
      * [RMI Implementation]
      * unregister this FrontTier instance
      */
-    public void unregisterFrontTier() throws RemoteException {
+    public synchronized void unregisterFrontTier() throws RemoteException {
         SL.unregister_frontend();
-        // Handle rest request
-        while (SL.getQueueLength() > 0) {
-            Cloud.FrontEndOps.Request r = SL.getNextRequest();
-            middleTier.processRequest(r);           
+        try {
+            Thread.sleep(1000); 
+        } catch (Exception e) {
+            
         }
+        SL.shutDown();
+        UnicastRemoteObject.unexportObject(this, true);
+        SL.endVM(id);
     }
     
     /**
      * Front Tier Initialization
      */
-    public FrontTier(String ip, int port, ServerLib SL, int id, int middle_id) throws Exception {
+    public FrontTier(String ip, int port, ServerLib SL, int id, CoordinatorRMI coordinator) throws Exception {
         super(0);
         System.err.println("Front Tier starts.");
         String url = String.format("//%s:%d/%d", ip, port, id);
         Naming.rebind(url, this);
         
-        // try to connect coordinator
-        try {
-            url = String.format("//%s:%d/%d", ip, port, defaultCoordinatorId);
-            coordinator = (CoordinatorRMI) Naming.lookup(url);
-            System.err.println("Coodinator Connected");
-        } catch (Exception e) {
-            System.err.println("Coodinator Connection Error");
-        }
-        
-        // try to connect middle tier
-        int connect = connectMiddleTier(ip, port, middle_id);
-        while (connect == -1) {
-            // if failure, that means middle tier may be booting
-            // retry until middle tier is ready to connect
-            connect = connectMiddleTier(ip, port, middle_id);
-        }
         this.SL = SL;
-        coordinator.completeScaleOut(id);
+        this.coordinator = coordinator;
+        this.id = id;
     }
     
     /**
@@ -73,13 +61,43 @@ public class FrontTier extends UnicastRemoteObject implements FrontTierRMI{
     public void run() throws Exception{
         SL.register_frontend();
         
+        Thread t = new Thread(new Runnable() {
+            public void run() {
+                while (true) {
+                    try {
+                        Thread.sleep(2000);
+                    } catch (Exception e) {
+                        
+                    }
+                    float cpuload = Cloud.getCPUload();
+                    System.err.println(cpuload);
+                    if (cpuload > 0.4 && cpuload < 0.9) {                        
+                        try {
+                            coordinator.addFrontTier();
+                            Thread.sleep(5000);
+                        } catch (Exception e) {
+                            
+                        }
+                    }
+                    if (cpuload < 0.2) {
+                        try {
+                            coordinator.removeFrontTier();
+                            Thread.sleep(5000);
+                        } catch (Exception e) {
+                            
+                        }
+                    }
+                    
+                }
+            }
+        });
+        t.start();
         // main loop
         while (true) {
-            //int len = SL.getQueueLength();
-            //System.err.println(Cloud.getCPUload() + " " + len);
-            Cloud.FrontEndOps.Request r = SL.getNextRequest();
-            middleTier.processRequest(r);
-            
+            Cloud.FrontEndOps.Request request = SL.getNextRequest();
+            coordinator.addRequest(request);
         }
+        
+        
     }
 }
