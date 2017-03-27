@@ -37,7 +37,7 @@ public class Coordinator extends UnicastRemoteObject implements CoordinatorRMI {
     private int overloadReportCounter = 0;
     private int underloadReportCounter = 0;
     
-    private Queue<Cloud.FrontEndOps.Request> requestQueue;
+    private Queue<Request> requestQueue;
     private List<Integer> FrontTierList;
     private List<Integer> MiddleTierList;
     private int count = 0;
@@ -56,7 +56,7 @@ public class Coordinator extends UnicastRemoteObject implements CoordinatorRMI {
         IDTypeMap = new ConcurrentHashMap<Integer, String>();
         FrontTierList = new ArrayList<Integer>();
         MiddleTierList = new ArrayList<Integer>();
-        requestQueue = new LinkedList<Cloud.FrontEndOps.Request>();
+        requestQueue = new LinkedList<Request>();
         this.SL = SL;
         this.ip = ip;
         this.port = port;
@@ -77,12 +77,37 @@ public class Coordinator extends UnicastRemoteObject implements CoordinatorRMI {
         return IDTypeMap.get(VM_id);
     }
     
+    public class Request {
+        Cloud.FrontEndOps.Request request;
+        long timestamp;
+        Request(Cloud.FrontEndOps.Request r, long t) {
+            request = r;
+            timestamp = t;
+        }
+    }
+    
     public void addRequest(Cloud.FrontEndOps.Request request) throws RemoteException {
-        requestQueue.offer(request);
+        Request r = new Request(request, System.currentTimeMillis());
+        requestQueue.offer(r);
     }
     
     public synchronized Cloud.FrontEndOps.Request getRequest() throws RemoteException {
-        return requestQueue.poll();
+        while (requestQueue.size() > 0) {
+            Request r = requestQueue.peek();
+            if (r.request.isPurchase) {
+                if (System.currentTimeMillis() - r.timestamp > 1500) {
+                    requestQueue.poll();
+                    continue;
+                }
+            } else {
+                if (System.currentTimeMillis() - r.timestamp > 500) {
+                    requestQueue.poll();
+                    continue;
+                }
+            }
+            break;
+        }
+        return requestQueue.poll().request;
     }
     
     public void addFrontTier() throws RemoteException {
@@ -329,7 +354,7 @@ public class Coordinator extends UnicastRemoteObject implements CoordinatorRMI {
                    //}
                    else {
                        count++;
-                       if (count > 1000) {
+                       if (count > 500) {
                            removeMiddleTierInstance();
                            count = 0;
                        }
