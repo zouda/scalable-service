@@ -60,7 +60,7 @@ public class FrontTier extends UnicastRemoteObject implements FrontTierRMI{
     public void run() throws Exception{
         SL.register_frontend();
         
-        Thread t = new Thread(new Runnable() {
+        Thread t1 = new Thread(new Runnable() {
             public void run() {
                 while (true) {
                     try {
@@ -69,7 +69,7 @@ public class FrontTier extends UnicastRemoteObject implements FrontTierRMI{
                         
                     }
                     float cpuload = Cloud.getCPUload();
-                    System.err.println(cpuload);
+                    //System.err.println(cpuload);
                     if (cpuload > 0.4 && cpuload < 0.9) {                        
                         try {
                             coordinator.addFrontTier();
@@ -90,12 +90,23 @@ public class FrontTier extends UnicastRemoteObject implements FrontTierRMI{
                 }
             }
         });
-        t.start();
+        t1.start();
         // main loop
-        while (true) {
-            Cloud.FrontEndOps.Request request = SL.getNextRequest();
-            coordinator.addRequest(request);
-        }
+        
+        
+        Thread t2 = new Thread(new Runnable() {
+            public void run() {
+                while (true) {
+                    Cloud.FrontEndOps.Request request = SL.getNextRequest();
+                    try {
+                        coordinator.addRequest(request);
+                    } catch (Exception e) {
+                        
+                    }
+                }
+            }
+        });
+        t2.start();
         
         
     }

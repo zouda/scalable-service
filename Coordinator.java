@@ -22,7 +22,7 @@ public class Coordinator extends UnicastRemoteObject implements CoordinatorRMI {
     private String ip;
     private int port;
     
-    private static int initialNumFrontTier = 1;
+    private static int initialNumFrontTier = 0;
     private static int initialNumMiddleTier = 2;
     
     private static int defaultCoordinatorId = 1;
@@ -40,7 +40,9 @@ public class Coordinator extends UnicastRemoteObject implements CoordinatorRMI {
     private Queue<Cloud.FrontEndOps.Request> requestQueue;
     private List<Integer> FrontTierList;
     private List<Integer> MiddleTierList;
-    
+    private int count = 0;
+    private int outcount = 0;
+    private int sum = 0;
     /**
      * Coordinator Initialization
      */
@@ -84,12 +86,12 @@ public class Coordinator extends UnicastRemoteObject implements CoordinatorRMI {
     }
     
     public void addFrontTier() throws RemoteException {
-        if (this.FrontTierList.size() < 3)
+        if (this.FrontTierList.size() < 2)
             startNewFrontTierInstance();
     }
     
     public void removeFrontTier() throws RemoteException {
-        if (this.FrontTierList.size() > 1)
+        if (this.FrontTierList.size() > 0)
             removeFrontTierInstance();
     }
     
@@ -176,7 +178,7 @@ public class Coordinator extends UnicastRemoteObject implements CoordinatorRMI {
      * Start a new front tier instance
      * @return VM id
      */
-    private int startNewFrontTierInstance() {
+    private synchronized int startNewFrontTierInstance() {
         int id = SL.startVM();
         IDTypeMap.put(id, "FrontTier");
         this.FrontTierList.add(id);
@@ -187,16 +189,21 @@ public class Coordinator extends UnicastRemoteObject implements CoordinatorRMI {
      * start a new middle tier instance
      * @return VM id
      */
-    private int startNewMiddleTierInstance() {
+    private synchronized void startNewMiddleTierInstance() {
         int id = SL.startVM();
         IDTypeMap.put(id, "MiddleTier");
         this.MiddleTierList.add(id);
-        return id;
     }
     
     private void removeFrontTierInstance() {
-        int front_id = this.FrontTierList.get(0);
-        this.FrontTierList.remove(0);
+        int front_id = 0;
+        synchronized (this) {
+            int size = this.FrontTierList.size();
+            if (size <= 1)
+                return;
+            front_id = this.FrontTierList.get(size-1);
+            this.FrontTierList.remove(size-1);
+        }
         try {
             String url = String.format("//%s:%d/%d", ip, port, front_id);
             FrontTierRMI frontTier = (FrontTierRMI) Naming.lookup(url);
@@ -207,14 +214,27 @@ public class Coordinator extends UnicastRemoteObject implements CoordinatorRMI {
     }
     
     private void removeMiddleTierInstance() {
-        int mid_id = this.MiddleTierList.get(0);
-        this.MiddleTierList.remove(0);
+        int mid_id = 0;
+        synchronized (this) {
+            int size = this.MiddleTierList.size();
+            if (size <= 1)
+                return;
+            mid_id = this.MiddleTierList.get(size-1);
+            this.MiddleTierList.remove(size-1);
+        }
+        MiddleTierRMI middleTier = null;
         try {
             String url = String.format("//%s:%d/%d", ip, port, mid_id);
-            MiddleTierRMI middleTier = (MiddleTierRMI) Naming.lookup(url);
-            middleTier.unregisterMiddleTier();
+            middleTier = (MiddleTierRMI) Naming.lookup(url);
         } catch (Exception e) {
             System.err.println("Coordinator::Remove MiddleTier Connection Failure ID: " + mid_id);
+            return;
+        }
+        try {
+            middleTier.unregisterMiddleTier();
+            SL.endVM(mid_id);
+        } catch (Exception e) {
+            System.err.println("Coordinator::Remove MiddleTier Remove Failure ID: " + mid_id);
         }
     }
     
@@ -262,6 +282,7 @@ public class Coordinator extends UnicastRemoteObject implements CoordinatorRMI {
      * Start new instances
      */
     private void createBeginnerInstance() {
+        
         for (int i = 0; i < initialNumFrontTier; i++) {
             startNewFrontTierInstance();
         }
@@ -285,6 +306,7 @@ public class Coordinator extends UnicastRemoteObject implements CoordinatorRMI {
      */
     public void run() {
         createBeginnerInstance();
+
         Thread t = new Thread(new Runnable() {
            public void run() {
                while (true) {
@@ -292,12 +314,24 @@ public class Coordinator extends UnicastRemoteObject implements CoordinatorRMI {
                    int newStartNum = queueSize - MiddleTierList.size();
                    //System.err.println(queueSize);
                    if (newStartNum > 0) {
-                       newStartNum = Math.min(10, newStartNum);
-                       startMiddleTier(newStartNum);
-                       try {
-                           Thread.sleep(5000);
-                       } catch (Exception e) {
+//                       outcount++;
+//                       sum += newStartNum;
+//                       if (outcount > 4) {
+//                           newStartNum = sum / outcount;
+                           startMiddleTier(newStartNum);
+                           try {
+                               Thread.sleep(5000);
+                           } catch (Exception e) {
                            
+                           }
+                           //outcount = 0;
+                       }
+                   //}
+                   else {
+                       count++;
+                       if (count > 1000) {
+                           removeMiddleTierInstance();
+                           count = 0;
                        }
                    }
                    try {
@@ -309,5 +343,57 @@ public class Coordinator extends UnicastRemoteObject implements CoordinatorRMI {
            } 
         });
         t.start();
+
+        Thread t1 = new Thread(new Runnable() {
+            public void run() {
+                while (true) {
+                    try {
+                        Thread.sleep(2000);
+                    } catch (Exception e) {
+                        
+                    }
+                    float cpuload = Cloud.getCPUload();
+                    //System.err.println(cpuload);
+                    if (cpuload > 0.4 && cpuload < 0.9) {                        
+                        try {
+                            addFrontTier();
+                            Thread.sleep(5000);
+                        } catch (Exception e) {
+                            
+                        }
+                    }
+                    if (cpuload < 0.2) {
+                        try {
+                            removeFrontTier();
+                            Thread.sleep(5000);
+                        } catch (Exception e) {
+                            
+                        }
+                    }
+                    
+                }
+            }
+        });
+        t1.start();
+        
+        Thread t2 = new Thread(new Runnable() {
+            public void run() {
+                try {
+                    Thread.sleep(5000);
+                } catch (Exception e) {
+                    
+                }
+                SL.register_frontend();
+                while (true) {
+                    Cloud.FrontEndOps.Request request = SL.getNextRequest();
+                    try {
+                        addRequest(request);
+                    } catch (Exception e) {
+                        
+                    }
+                }
+            }
+        });
+        t2.start();
     }
 }

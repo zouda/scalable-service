@@ -18,7 +18,7 @@ public class MiddleTier extends UnicastRemoteObject implements MiddleTierRMI {
     private int maxAllowableUnderload = 1;
     private int overlookThreshold = 15;
     
-    
+    private int getRequestMiss = 0;
     /**
      * Middle Tier Initialization
      */
@@ -81,20 +81,28 @@ public class MiddleTier extends UnicastRemoteObject implements MiddleTierRMI {
 
     public void unregisterMiddleTier() throws RemoteException {
         SL.shutDown();
-        UnicastRemoteObject.unexportObject(this, true);
-        SL.endVM(id);
+        try {
+            UnicastRemoteObject.unexportObject(this, true);
+        } catch (Exception e) {
+            System.err.println("error in unexport");
+        }
     }
     
     public void run() {
-        while (true) {
-            try {
-                Cloud.FrontEndOps.Request request = coordinator.getRequest();
-                if (request != null) {
-                    SL.processRequest(request);
-                } 
-            } catch (Exception e) {
-                
+        Thread t = new Thread(new Runnable() {
+            public void run() {
+                while (true) {
+                    try {
+                        Cloud.FrontEndOps.Request request = coordinator.getRequest();
+                        if (request != null) {
+                            SL.processRequest(request);
+                        } 
+                    } catch (Exception e) {
+              
+                    }
+                }
             }
-        }
+        });
+        t.start();
     }
 }
